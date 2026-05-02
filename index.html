@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TeamSync - Collaboration Tool</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      color: #333;
+    }
+
+    header {
+      background: #1a73e8;
+      color: white;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 { font-size: 22px; font-weight: 600; }
+    header span { font-size: 13px; opacity: 0.85; }
+
+    .add-task-bar {
+      background: white;
+      padding: 16px 32px;
+      display: flex;
+      gap: 10px;
+      border-bottom: 1px solid #ddd;
+      flex-wrap: wrap;
+    }
+
+    .add-task-bar input, .add-task-bar select {
+      padding: 9px 14px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .add-task-bar input { flex: 1; min-width: 200px; }
+
+    .add-task-bar button {
+      background: #1a73e8;
+      color: white;
+      border: none;
+      padding: 9px 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .add-task-bar button:hover { background: #1558b0; }
+
+    .board {
+      display: flex;
+      gap: 20px;
+      padding: 24px 32px;
+      overflow-x: auto;
+    }
+
+    .column {
+      background: white;
+      border-radius: 10px;
+      padding: 16px;
+      min-width: 260px;
+      flex: 1;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+
+    .column-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .column-header h2 { font-size: 15px; font-weight: 600; }
+
+    .badge {
+      background: #e8f0fe;
+      color: #1a73e8;
+      border-radius: 12px;
+      padding: 2px 10px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .badge.inprogress { background: #fff3e0; color: #e65100; }
+    .badge.done { background: #e6f4ea; color: #2e7d32; }
+
+    .task-list { display: flex; flex-direction: column; gap: 10px; min-height: 60px; }
+
+    .task-card {
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .task-card .task-text { flex: 1; line-height: 1.4; }
+
+    .task-card .assignee {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+    }
+
+    .task-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+    .task-actions button {
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+
+    .task-actions button:hover { background: #e0e0e0; }
+
+    .empty-msg {
+      text-align: center;
+      color: #bbb;
+      font-size: 13px;
+      padding: 20px 0;
+    }
+
+    footer {
+      text-align: center;
+      padding: 16px;
+      font-size: 12px;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>TeamSync</h1>
+  <span>Team Collaboration &amp; Task Visibility</span>
+</header>
+
+<div class="add-task-bar">
+  <input type="text" id="taskInput" placeholder="Enter a task..." />
+  <input type="text" id="assigneeInput" placeholder="Assignee (optional)" />
+  <select id="columnSelect">
+    <option value="todo">To Do</option>
+    <option value="inprogress">In Progress</option>
+    <option value="done">Done</option>
+  </select>
+  <button onclick="addTask()">+ Add Task</button>
+</div>
+
+<div class="board">
+  <div class="column">
+    <div class="column-header">
+      <h2>To Do</h2>
+      <span class="badge" id="badge-todo">0</span>
+    </div>
+    <div class="task-list" id="todo"></div>
+  </div>
+
+  <div class="column">
+    <div class="column-header">
+      <h2>In Progress</h2>
+      <span class="badge inprogress" id="badge-inprogress">0</span>
+    </div>
+    <div class="task-list" id="inprogress"></div>
+  </div>
+
+  <div class="column">
+    <div class="column-header">
+      <h2>Done</h2>
+      <span class="badge done" id="badge-done">0</span>
+    </div>
+    <div class="task-list" id="done"></div>
+  </div>
+</div>
+
+<footer>TeamSync &mdash; Simplifying workflows &amp; improving task visibility</footer>
+
+<script>
+  const columns = ['todo', 'inprogress', 'done'];
+  const labels = { todo: 'To Do', inprogress: 'In Progress', done: 'Done' };
+
+  let tasks = JSON.parse(localStorage.getItem('teamsync_tasks') || '[]');
+
+  function save() {
+    localStorage.setItem('teamsync_tasks', JSON.stringify(tasks));
+  }
+
+  function render() {
+    columns.forEach(col => {
+      const list = document.getElementById(col);
+      const colTasks = tasks.filter(t => t.status === col);
+      document.getElementById('badge-' + col).textContent = colTasks.length;
+
+      if (colTasks.length === 0) {
+        list.innerHTML = '<div class="empty-msg">No tasks</div>';
+        return;
+      }
+
+      list.innerHTML = colTasks.map(t => `
+        <div class="task-card">
+          <div>
+            <div class="task-text">${escHtml(t.text)}</div>
+            ${t.assignee ? `<div class="assignee">👤 ${escHtml(t.assignee)}</div>` : ''}
+          </div>
+          <div class="task-actions">
+            ${col !== 'inprogress' && col !== 'done' ? `<button title="Move to In Progress" onclick="move('${t.id}','inprogress')">▶</button>` : ''}
+            ${col === 'inprogress' ? `<button title="Mark Done" onclick="move('${t.id}','done')">✔</button>` : ''}
+            ${col === 'done' ? `<button title="Move back" onclick="move('${t.id}','todo')">↩</button>` : ''}
+            <button title="Delete" onclick="remove('${t.id}')">🗑</button>
+          </div>
+        </div>
+      `).join('');
+    });
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function addTask() {
+    const text = document.getElementById('taskInput').value.trim();
+    if (!text) return;
+    tasks.push({
+      id: Date.now().toString(),
+      text,
+      assignee: document.getElementById('assigneeInput').value.trim(),
+      status: document.getElementById('columnSelect').value
+    });
+    document.getElementById('taskInput').value = '';
+    document.getElementById('assigneeInput').value = '';
+    save(); render();
+  }
+
+  function move(id, status) {
+    const t = tasks.find(t => t.id === id);
+    if (t) { t.status = status; save(); render(); }
+  }
+
+  function remove(id) {
+    tasks = tasks.filter(t => t.id !== id);
+    save(); render();
+  }
+
+  document.getElementById('taskInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addTask();
+  });
+
+  render();
+</script>
+</body>
+</html>
